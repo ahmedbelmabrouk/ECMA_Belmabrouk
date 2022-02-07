@@ -88,7 +88,7 @@ m1 = Model(CPLEX.Optimizer)
 
 @constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==s) )==1)
 @constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) )==1)
-@constraint(m1,[v in 1:n ; (v≠s & v≠t)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
+@constraint(m1,[v in 1:n ; (v≠s && v≠t)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m1,[v in 1:n ; v≠t], y[v]==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m1, y[t]==(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) ))
 @constraint(m1, (sum(p[i] * y[i] + 2 * z1[i] for i in  1:n) + t2 * d2 ) <= S)
@@ -102,8 +102,7 @@ optimize!(m1)
 vX = value.(x)
 for i in 1: length(Mat)
     if vX[i]==1
-        println(Mat[i][1],Mat[i][2])
+        println(Mat[i][1], " ",Mat[i][2])
     end
 end
 print("Solution : ", value.(x))
-
