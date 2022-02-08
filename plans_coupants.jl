@@ -62,7 +62,7 @@ if isfile("C:/Users/ahmed/Desktop/ECMA Belmabrouk/Instances_ECMA/" * nom_instanc
     end
 return (n,s,t,S,d1,d2,p,ph,Mat)
 end
-(n,s,t,S,d1,d2,p,ph,Mat)=LireInstance("20_USA-road-d.BAY.gr")
+(n,s,t,S,d1,d2,p,ph,Mat)=LireInstance("20_USA-road-d.NY.gr")
 """
 println(n) 
 println(s)
@@ -81,34 +81,36 @@ m = Model(CPLEX.Optimizer)
 
 @variable(m, x[i in 1:length(Mat)] , Bin)
 @variable(m, y[i in 1:n], Bin)
-@variable(m, z)
-#initialisation
-d_1 =[]
-for j in 1:length(Mat)
-    append!(d_1,Mat[j][3])
-end
-p2=p
+@variable(m, z >=0)
+
 #Définition des contraintes
-@constraint(m, (sum(d_1[i] * x[i] for i in 1:length(Mat))) <= z )
-@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][1] == s) )==1)
-@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) )==1)
-@constraint(m,[v in 1:n ; (v≠s & v≠t)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
+@constraint(m, (sum(Mat[i][3] * x[i] for i in 1:length(Mat))) <= z )
+@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==s)==1))
+@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==s)==0))
+@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t)==1))
+@constraint(m, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==t)==0))
+@constraint(m,[v in 1:n ; (v≠s && v≠t)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m,[v in 1:n ; v≠t], y[v]==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m, y[t]==(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) ))
-@constraint(m, (sum(p2[i] * y[i]  for i in  1:n) <= S))
-
+@constraint(m, (sum(p[i] * y[i]  for i in  1:n) <= S))
 #Définition de l'objectif
 @objective(m, Min, z)
 optimize!(m)
+z_etoile=objective_value(m)
+x_cour=value.(x)
+y_cour=value.(y)
+#optimize!(m)
 
 #**********sous probleme 1************
 m1 = Model(CPLEX.Optimizer)
 
 @variable(m1, sigma1[i in 1:length(Mat)] >=0)
-@constraint(m1, (sum(sigma1[i] for i in 1:length(Mat))) <=d1)
+@constraint(m1, sum(sigma1[i] for i in 1:length(Mat)) <= d1)
 @constraint(m1 , [i in 1:length(Mat)] , sigma1[i] <= Mat[i][4] )
-x_cour=value.(x)
-@objective(m1, Max,sum(Mat[i][3]*(1+sigma1[i])*x_cour[i] for i in 1:length(Mat)))
+@objective(m1, Max, sum(Mat[i][3] * (1+sigma1[i]) * x_cour[i] for i in 1:length(Mat)))
+optimize!(m1)
+z1=objective_value(m1)
+vsigma1=value.(sigma1)
 
 
 #***********sous problme 2************
@@ -117,34 +119,42 @@ m2 = Model(CPLEX.Optimizer)
 @variable(m2, sigma2[i in 1:n] >=0)
 @constraint(m2, (sum(sigma2[i] for i in 1:n) <= d2))
 @constraint(m2 , [i in 1:n] , sigma2[i] <= 2 )
-y_cour=value.(y)
 @objective(m2, Max,sum((p[i]+ph[i]*sigma2[i])*y_cour[i] for i in 1:n))
+optimize!(m2)
+z2=objective_value(m2)
+vsigma2=value.(sigma2)
 
 
-
-#boucle 
-while true 
-    optimize!(m)
-    optimize!(m1)
-    vsigma1=value.(sigma1)
-    optimize!(m2)
-    vsigma2=value.(sigma2)
-    if ((objective_value(m) == objective_value(m1)) & (objective_value(m2) <= S ))
-        """
-        vX = value.(x)
-        for i in 1: length(Mat)
-            if vX[i]==1
-                println(Mat[i][1],Mat[i][2])
-            end
-        end
-        """
-        break
-    else #Mise a jour de d_1
-        for i in 1:length(Mat)
-            d_1[i]=Mat[i][3]*(1 + vsigma1[i])
-        end
-        for i in 1:n
-            p2[i]=ph[i]+vsigma2[i]
-        end
+while abs(z1 - z_etoile) > 1e-4 || z2 > S 
+    if abs(z1 - z_etoile) > 1e-4
+        @constraint(m, (sum(Mat[i][3] * (1 + vsigma1[i]) * x[i] for i in 1:length(Mat)) <= z ))
+        # println("ajout d'une contrainte SP1")
+    elseif z2 > S
+        @constraint(m, (sum((ph[i] + vsigma2[i])* y[i]  for i in  1:n) <= S))
+        # println("ajout d'une contrainte SP2")
     end
+    
+    # On relance la recherche de solution de MP
+    optimize!(m)
+    
+    z_etoile = objective_value(m)
+    x_cour=value.(x)
+    y_cour=value.(y)
+
+    # On met à jour les objectifs des sous-problèmes
+    @objective(m1, Max, sum(Mat[i][3] * (1 + sigma1[i]) * x_cour[i] for i in 1:length(Mat)))
+    @objective(m2, Max,sum((p[i]+ph[i]*sigma2[i])*y_cour[i] for i in 1:n))
+
+    # On relance les optimisations
+    optimize!(m1)
+    optimize!(m2)
+
+    # Nouvelles valeurs des valeurs optimales des sous-problèmes
+    z1=objective_value(m1)
+    z2=objective_value(m2)
+    
+    # Nouvelles valeurs des variables des sous-problèmes
+    vsigma1=value.(sigma1)
+    vsigma2=value.(sigma2)
 end
+println("Objective value: ", z_etoile)
