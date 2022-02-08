@@ -62,7 +62,7 @@ if isfile("C:/Users/ahmed/Desktop/ECMA Belmabrouk/Instances_ECMA/" * nom_instanc
     end
 return (n,s,t,S,d1,d2,p,ph,Mat)
 end
-(n,s,t,S,d1,d2,p,ph,Mat)=LireInstance("20_USA-road-d.BAY.gr")
+(n,s,t,S,d1,d2,p,ph,Mat)=LireInstance("20_USA-road-d.NY.gr")
 """
 println(n) 
 println(s)
@@ -86,9 +86,11 @@ m1 = Model(CPLEX.Optimizer)
 @variable(m1, z1[i in 1:n] >=0 )
 #Définition des contraintes
 
-@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==s) )==1)
-@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) )==1)
-@constraint(m1,[v in 1:n ; (v≠s && v≠t)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
+@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==s)==1))
+@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==s)==0))
+@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t)==1))
+@constraint(m1, (sum(x[i] for i in 1:length(Mat) if Mat[i][1]==t)==0))
+@constraint(m1,[v in 1:n ; (v≠t && v≠s)],(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==v) )==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m1,[v in 1:n ; v≠t], y[v]==(sum(x[i] for i in 1:length(Mat) if Mat[i][1]==v) ))
 @constraint(m1, y[t]==(sum(x[i] for i in 1:length(Mat) if Mat[i][2]==t) ))
 @constraint(m1, (sum(p[i] * y[i] + 2 * z1[i] for i in  1:n) + t2 * d2 ) <= S)
@@ -105,4 +107,5 @@ for i in 1: length(Mat)
         println(Mat[i][1], " ",Mat[i][2])
     end
 end
-print("Solution : ", value.(x))
+print("objective value:  ", objective_value(m1))
+
